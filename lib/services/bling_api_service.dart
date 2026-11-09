@@ -11,7 +11,7 @@ class BlingApiService {
   BlingApiService._();
   static final BlingApiService instance = BlingApiService._();
 
-  static const _baseUrl = 'https://www.bling.com.br/Api/v3';
+  static const _baseUrl = 'https://api.bling.com.br/Api/v3';
   static const _pageDelay = Duration(milliseconds: 400);
 
   /// Baixa todos os produtos ativos, página por página.

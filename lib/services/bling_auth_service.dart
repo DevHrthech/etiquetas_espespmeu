@@ -17,7 +17,7 @@ const blingRedirectPort = 17432;
 const blingRedirectUri = 'http://localhost:$blingRedirectPort/callback';
 
 const _authorizeUrl = 'https://www.bling.com.br/Api/v3/oauth/authorize';
-const _tokenUrl = 'https://www.bling.com.br/Api/v3/oauth/token';
+const _tokenUrl = 'https://api.bling.com.br/Api/v3/oauth/token';
 
 class BlingAuthException implements Exception {
   final String message;

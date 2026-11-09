@@ -8,6 +8,7 @@ import '../services/printer_service.dart';
 import '../services/product_cache.dart';
 import '../services/secure_store.dart';
 import '../services/zpl_label_service.dart';
+import '../theme.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -166,21 +167,14 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          if (_status != null)
-            Container(
-              width: double.infinity,
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(_status!),
-            ),
+          if (_status != null) _buildStatusBanner(),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
-                labelText: 'Buscar produto por nome ou código',
-                prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
+                hintText: 'Buscar produto por nome ou código',
+                prefixIcon: const Icon(Icons.search_rounded),
                 helperText: _lastSync == null
                     ? 'Produtos ainda não sincronizados'
                     : 'Última sincronização: ${DateFormat('dd/MM HH:mm').format(_lastSync!)}',
@@ -189,19 +183,39 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: _buildResultsList(),
-                ),
-                const VerticalDivider(width: 1),
-                Expanded(
-                  flex: 2,
-                  child: _buildQueuePanel(),
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: _buildResultsList()),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 2, child: _buildQueuePanel()),
+                ],
+              ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBanner() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.creamCard,
+        borderRadius: BorderRadius.circular(16),
+        border: const Border(left: BorderSide(color: AppColors.wine, width: 4)),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: Text(_status!, style: const TextStyle(color: AppColors.wineDark))),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 18),
+            onPressed: () => setState(() => _status = null),
           ),
         ],
       ),
@@ -210,93 +224,185 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildResultsList() {
     if (_results.isEmpty) {
-      return const Center(child: Text('Nenhum produto encontrado.'));
+      return const Center(
+        child: Text('Nenhum produto encontrado.', style: TextStyle(color: AppColors.textMuted)),
+      );
     }
-    return ListView.builder(
+    return ListView.separated(
       itemCount: _results.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final p = _results[index];
-        return ListTile(
-          title: Text(p.nome),
-          subtitle: Text('Código: ${p.codigo}${p.gtin != null ? ' · GTIN: ${p.gtin}' : ''}'),
-          trailing: Text(_currency.format(p.preco)),
-          onTap: () => _addToQueue(p),
+        return Card(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => _addToQueue(p),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(p.nome, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Código: ${p.codigo}${p.gtin != null ? ' · GTIN: ${p.gtin}' : ''}',
+                          style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _currency.format(p.preco),
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.wine),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.add_circle_rounded, color: AppColors.wine),
+                ],
+              ),
+            ),
+          ),
         );
       },
     );
   }
 
   Widget _buildQueuePanel() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Fila de impressão',
-                  style: Theme.of(context).textTheme.titleMedium,
-                  overflow: TextOverflow.ellipsis,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Fila de impressão',
+                    style: Theme.of(context).textTheme.titleMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              Text('$_totalLabels etiqueta(s)'),
-            ],
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.blush.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$_totalLabels etiqueta(s)',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.wineDark),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        Expanded(
-          child: _queue.isEmpty
-              ? const Center(child: Text('Toque em um produto para adicionar.'))
-              : ListView.builder(
-                  itemCount: _queue.length,
-                  itemBuilder: (context, index) {
-                    final item = _queue[index];
-                    return ListTile(
-                      title: Text(item.product.nome),
-                      subtitle: Text(_currency.format(item.product.preco)),
-                      trailing: SizedBox(
-                        width: 160,
+          const Divider(height: 1),
+          Expanded(
+            child: _queue.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Toque em um produto para adicionar.',
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _queue.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final item = _queue[index];
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.creamSoft,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove),
-                              onPressed: () => _updateQuantity(item, item.quantity - 1),
-                            ),
-                            SizedBox(
-                              width: 32,
-                              child: Text(
-                                '${item.quantity}',
-                                textAlign: TextAlign.center,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.product.nome,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                                  ),
+                                  Text(
+                                    _currency.format(item.product.preco),
+                                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                                  ),
+                                ],
                               ),
                             ),
+                            _buildQuantityStepper(item),
                             IconButton(
-                              icon: const Icon(Icons.add),
-                              onPressed: () => _updateQuantity(item, item.quantity + 1),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline),
+                              icon: const Icon(Icons.delete_outline_rounded, size: 20),
                               onPressed: () => _removeFromQueue(item),
                             ),
                           ],
                         ),
-                      ),
-                    );
-                  },
-                ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _queue.isEmpty ? null : _printQueue,
-              icon: const Icon(Icons.print),
-              label: const Text('Imprimir etiquetas'),
+                      );
+                    },
+                  ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _queue.isEmpty ? null : _printQueue,
+                icon: const Icon(Icons.print_rounded),
+                label: const Text('Imprimir etiquetas'),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuantityStepper(PrintQueueItem item) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            iconSize: 16,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.remove_rounded),
+            onPressed: () => _updateQuantity(item, item.quantity - 1),
+          ),
+          SizedBox(
+            width: 22,
+            child: Text(
+              '${item.quantity}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+          ),
+          IconButton(
+            iconSize: 16,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.add_rounded),
+            onPressed: () => _updateQuantity(item, item.quantity + 1),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -43,8 +43,16 @@ class ProductCache {
     return db;
   }
 
+  /// Substitui o catálogo local pelos produtos recém-baixados. A listagem
+  /// do Bling não traz GTIN, então preserva o que já tinha sido buscado
+  /// sob demanda (ver [updateGtin]) para o mesmo id.
   Future<void> replaceAll(List<Product> products) async {
     final db = await _open();
+    final existingGtins = <int, String?>{};
+    for (final row in db.select('SELECT id, gtin FROM produtos;')) {
+      existingGtins[row['id'] as int] = row['gtin'] as String?;
+    }
+
     db.execute('BEGIN TRANSACTION;');
     try {
       db.execute('DELETE FROM produtos;');
@@ -52,7 +60,8 @@ class ProductCache {
         'INSERT INTO produtos (id, nome, codigo, gtin, preco) VALUES (?, ?, ?, ?, ?);',
       );
       for (final p in products) {
-        stmt.execute([p.id, p.nome, p.codigo, p.gtin, p.preco]);
+        final gtin = p.gtin ?? existingGtins[p.id];
+        stmt.execute([p.id, p.nome, p.codigo, gtin, p.preco]);
       }
       stmt.dispose();
       db.execute(
@@ -63,6 +72,11 @@ class ProductCache {
       db.execute('ROLLBACK;');
       rethrow;
     }
+  }
+
+  Future<void> updateGtin(int productId, String gtin) async {
+    final db = await _open();
+    db.execute('UPDATE produtos SET gtin = ? WHERE id = ?;', [gtin, productId]);
   }
 
   Future<DateTime?> lastSync() async {

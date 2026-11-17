@@ -48,6 +48,41 @@ class BlingApiService {
     }
   }
 
+  /// A listagem GET /produtos não traz o GTIN (só campos básicos). Para
+  /// imprimir o EAN certo é preciso buscar o produto individualmente.
+  Future<String?> fetchGtin(int productId) async {
+    var attempt = 0;
+    while (true) {
+      try {
+        final token = await BlingAuthService.instance.getValidAccessToken();
+        final uri = Uri.parse('$_baseUrl/produtos/$productId');
+        final response = await http.get(uri, headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        });
+
+        if (response.statusCode == 429) {
+          final retryAfterHeader = response.headers['retry-after'];
+          final seconds = retryAfterHeader != null ? int.tryParse(retryAfterHeader) : null;
+          throw _RateLimitException(seconds != null ? Duration(seconds: seconds) : null);
+        }
+        if (response.statusCode != 200) {
+          throw Exception('Erro ao buscar detalhes do produto no Bling (${response.statusCode}): ${response.body}');
+        }
+
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final data = json['data'] as Map<String, dynamic>?;
+        final gtin = data?['gtin'] as String?;
+        return (gtin != null && gtin.trim().isNotEmpty) ? gtin.trim() : null;
+      } on _RateLimitException catch (e) {
+        attempt++;
+        if (attempt > _maxRetries) return null;
+        final wait = e.retryAfter ?? Duration(seconds: 2 * attempt);
+        await Future.delayed(wait);
+      }
+    }
+  }
+
   Future<List<Product>> _fetchPage(int page) async {
     final token = await BlingAuthService.instance.getValidAccessToken();
     final uri = Uri.parse('$_baseUrl/produtos').replace(queryParameters: {

@@ -45,6 +45,14 @@ class Product {
   /// interno se o produto não tiver GTIN cadastrado no Bling).
   String get barcodeValue => (gtin != null && gtin!.trim().isNotEmpty) ? gtin! : codigo;
 
+  Product copyWith({String? gtin}) => Product(
+        id: id,
+        nome: nome,
+        codigo: codigo,
+        gtin: gtin ?? this.gtin,
+        preco: preco,
+      );
+
   static double _asDouble(Object? v) {
     if (v == null) return 0;
     if (v is num) return v.toDouble();

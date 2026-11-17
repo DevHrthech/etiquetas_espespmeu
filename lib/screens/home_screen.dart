@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../models/label_layout.dart';
 import '../models/product.dart';
 import '../services/bling_api_service.dart';
 import '../services/bling_auth_service.dart';
+import '../services/label_layout_store.dart';
 import '../services/printer_service.dart';
 import '../services/product_cache.dart';
 import '../services/secure_store.dart';
 import '../services/zpl_label_service.dart';
 import '../theme.dart';
+import 'label_designer_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -29,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _syncCount = 0;
   DateTime? _lastSync;
   String? _status;
+  LabelLayout _labelLayout = LabelLayout.standard();
 
   @override
   void initState() {
@@ -39,7 +43,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadInitial() async {
     final lastSync = await ProductCache.instance.lastSync();
     final count = await ProductCache.instance.count();
-    setState(() => _lastSync = lastSync);
+    final layout = await LabelLayoutStore.instance.load();
+    setState(() {
+      _lastSync = lastSync;
+      _labelLayout = layout;
+    });
     if (count == 0) {
       await _syncProducts();
     } else {
@@ -83,13 +91,38 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _results = results);
   }
 
-  void _addToQueue(Product product) {
+  final Set<int> _fetchingGtin = {};
+
+  Future<void> _addToQueue(Product product) async {
+    var resolved = product;
+
+    // A listagem do Bling não traz o GTIN, só o código interno. Busca o
+    // GTIN individualmente na primeira vez que o produto é usado, e
+    // guarda no cache pra não precisar buscar de novo depois.
+    if (resolved.gtin == null && !_fetchingGtin.contains(product.id)) {
+      _fetchingGtin.add(product.id);
+      setState(() {});
+      try {
+        final gtin = await BlingApiService.instance.fetchGtin(product.id);
+        if (gtin != null) {
+          resolved = product.copyWith(gtin: gtin);
+          await ProductCache.instance.updateGtin(product.id, gtin);
+          final idx = _results.indexWhere((p) => p.id == product.id);
+          if (idx != -1) _results[idx] = resolved;
+        }
+      } catch (_) {
+        // Sem GTIN disponível agora, imprime com o código interno mesmo.
+      } finally {
+        _fetchingGtin.remove(product.id);
+      }
+    }
+
     setState(() {
-      final matches = _queue.where((i) => i.product.id == product.id);
+      final matches = _queue.where((i) => i.product.id == resolved.id);
       if (matches.isNotEmpty) {
         matches.first.quantity++;
       } else {
-        _queue.add(PrintQueueItem(product: product, quantity: 1));
+        _queue.add(PrintQueueItem(product: resolved, quantity: 1));
       }
     });
   }
@@ -118,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     try {
-      final zpl = ZplLabelService().buildZplForQueue(_queue);
+      final zpl = ZplLabelService(_labelLayout).buildZplForQueue(_queue);
       PrinterService.instance.printRaw(printerName, zpl);
       setState(() {
         _status = '$_totalLabels etiqueta(s) enviada(s) para "$printerName".';
@@ -151,6 +184,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   )
                 : const Icon(Icons.sync),
             onPressed: _syncing ? null : _syncProducts,
+          ),
+          IconButton(
+            tooltip: 'Editor de etiqueta',
+            icon: const Icon(Icons.dashboard_customize_outlined),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LabelDesignerScreen()),
+              );
+              final layout = await LabelLayoutStore.instance.load();
+              setState(() => _labelLayout = layout);
+            },
           ),
           IconButton(
             tooltip: 'Configurações',
@@ -260,7 +305,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.wine),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(Icons.add_circle_rounded, color: AppColors.wine),
+                  _fetchingGtin.contains(p.id)
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_circle_rounded, color: AppColors.wine),
                 ],
               ),
             ),
